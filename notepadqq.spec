@@ -24,12 +24,17 @@ Notepadqq is a Notepad++-like editor for the Linux desktop.
 mv -f CodeMirror-%{codemirror_ver}/* src/editor/libs/codemirror
 
 %build
-%qmake_qt5 *.pro
+%qmake_qt5 PREFIX=%{_prefix} *.pro
 
-%make -j1
+%make
 
 %install
 %makeinstall_std INSTALL_ROOT=%{buildroot}
 
 %files
 %doc README.md CONTRIBUTORS.md
+%{_bindir}/notepadqq
+%{_libdir}/notepadqq/notepadqq-bin
+%{_datadir}/applications/notepadqq.desktop
+%{_iconsdir}/hicolor/*/apps/notepadqq.*g
+%{_datadir}/notepadqq
