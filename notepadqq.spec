@@ -7,6 +7,7 @@ Group:		System/Libraries
 URL:		http://notepadqq.altervista.org/wp/
 Source0:	https://github.com/notepadqq/notepadqq/archive/%{name}-%{version}.tar.gz
 BuildRequires:	pkgconfig(Qt5WebKit)
+BuildRequires:	pkgconfig(Qt5WebKitWidgets)
 BuildRequires:	pkgconfig(Qt5Svg)
 BuildRequires:	qmake5
 
