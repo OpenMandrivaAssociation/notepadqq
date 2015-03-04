@@ -7,6 +7,8 @@ Group:		System/Libraries
 URL:		http://notepadqq.altervista.org/wp/
 Source0:	https://github.com/notepadqq/notepadqq/archive/%{name}-%{version}.tar.gz
 BuildRequires:	pkgconfig(Qt5WebKit)
+BuildRequires:	pkgconfig(Qt5Svg)
+BuildRequires:	qmake5
 
 %description
 Notepadqq is a Notepad++-like editor for the Linux desktop.
