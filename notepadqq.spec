@@ -1,3 +1,5 @@
+%define codemirror_ver 4.7.0
+
 Summary:	A Linux clone of Notepad++
 Name:		notepadqq
 Version:	0.45.1
@@ -6,6 +8,7 @@ License:	GPLv3
 Group:		System/Libraries
 URL:		http://notepadqq.altervista.org/wp/
 Source0:	https://github.com/notepadqq/notepadqq/archive/%{name}-%{version}.tar.gz
+Source1:	https://github.com/notepadqq/CodeMirror/archive/CodeMirror-%{codemirror_ver}.tar.gz
 BuildRequires:	pkgconfig(Qt5WebKit)
 BuildRequires:	pkgconfig(Qt5WebKitWidgets)
 BuildRequires:	pkgconfig(Qt5Svg)
@@ -15,7 +18,10 @@ BuildRequires:	qmake5
 Notepadqq is a Notepad++-like editor for the Linux desktop.
 
 %prep
-%setup -q
+%setup -q -a 1
+
+# (tpg) install CodeMirror
+mv -f CodeMirror-%{codemirror_ver}/* src/editor/libs/codemirror
 
 %build
 %qmake_qt5 *.pro
