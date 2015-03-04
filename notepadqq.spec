@@ -20,7 +20,7 @@ Notepadqq is a Notepad++-like editor for the Linux desktop.
 %build
 %qmake_qt5 *.pro
 
-%make
+%make -j1
 
 %install
 %makeinstall_std INSTALL_ROOT=%{buildroot}
