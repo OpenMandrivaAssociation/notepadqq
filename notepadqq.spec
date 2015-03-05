@@ -3,7 +3,7 @@
 Summary:	A Linux clone of Notepad++
 Name:		notepadqq
 Version:	0.45.1
-Release:	2
+Release:	3
 License:	GPLv3
 Group:		Editors
 URL:		http://notepadqq.altervista.org/wp/
@@ -34,9 +34,12 @@ sed -i -e "s/lib/%{_lib}/g" src/ui/ui.pro
 %install
 %makeinstall_std INSTALL_ROOT=%{buildroot}
 
+# (tpg) bug #1136
+ln -sf %{_libdir}/notepadqq/notepadqq-bin %{buildroot}%{_bindir}/notepadqq-bin
+
 %files
 %doc README.md CONTRIBUTORS.md
-%{_bindir}/notepadqq
+%{_bindir}/notepadqq*
 %{_libdir}/notepadqq/notepadqq-bin
 %{_datadir}/applications/notepadqq.desktop
 %{_iconsdir}/hicolor/*/apps/notepadqq.*g
