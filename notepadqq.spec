@@ -1,9 +1,9 @@
-%define codemirror_ver 4.7.0
+%define codemirror_ver 5.1.0
 
 Summary:	A Linux clone of Notepad++
 Name:		notepadqq
-Version:	0.45.1
-Release:	3
+Version:	0.46.2
+Release:	1
 License:	GPLv3
 Group:		Editors
 URL:		http://notepadqq.altervista.org/wp/
