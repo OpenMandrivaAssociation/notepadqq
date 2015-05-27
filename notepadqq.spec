@@ -22,6 +22,7 @@ Notepadqq is a Notepad++-like editor for the Linux desktop.
 
 # (tpg) install CodeMirror
 mv -f CodeMirror-%{codemirror_ver}/* src/editor/libs/codemirror
+mkdir -p src/editor/libs/codemirror/mode/m4
 
 # (tpg) fix libdir
 sed -i -e "s/lib/%{_lib}/g" src/ui/ui.pro
