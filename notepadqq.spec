@@ -3,7 +3,7 @@
 Summary:	A Linux clone of Notepad++
 Name:		notepadqq
 Version:	0.50.4
-Release:	1
+Release:	2
 License:	GPLv3
 Group:		Editors
 URL:		http://notepadqq.altervista.org/wp/
