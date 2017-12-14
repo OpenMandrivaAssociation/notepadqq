@@ -12,6 +12,7 @@ BuildRequires:	pkgconfig(Qt5WebKit)
 BuildRequires:	pkgconfig(Qt5WebKitWidgets)
 BuildRequires:	pkgconfig(Qt5Svg)
 BuildRequires:	pkgconfig(Qt5Test)
+BuildRequires:	cmake(Qt5LinguistTools)
 BuildRequires:	qmake5
 
 %description
