@@ -8,6 +8,9 @@ License:	GPLv3
 Group:		Editors
 URL:		http://notepadqq.altervista.org/wp/
 Source0:	https://github.com/notepadqq/notepadqq/archive/%{name}-%{version}.tar.gz
+BuildRequires:	pkgconfig(Qt5Core)
+BuildRequires:	pkgconfig(Qt5Gui)
+BuildRequires:	pkgconfig(Qt5Widgets)
 BuildRequires:	pkgconfig(Qt5WebKit)
 BuildRequires:	pkgconfig(Qt5WebKitWidgets)
 BuildRequires:	pkgconfig(Qt5Svg)
@@ -26,8 +29,17 @@ Notepadqq is a Notepad++-like editor for the Linux desktop.
 
 mkdir -p src/editor/libs/codemirror/mode/m4
 
+# fix Debianisms
+sed -i -e 's,qt=5,qt=qt5-qtbase,g' configure src/ui/ui.pro
+
 # (tpg) fix libdir
 sed -i -e "s/lib/%{_lib}/g" src/ui/ui.pro
+
+# The Makefiles don't work properly, so let's do their job
+cd src/translations
+for i in *.ts; do
+	%{_libdir}/qt5/bin/lrelease $i
+done
 
 %build
 %qmake_qt5 PREFIX=%{_prefix} *.pro
@@ -41,7 +53,7 @@ sed -i -e "s/lib/%{_lib}/g" src/ui/ui.pro
 ln -sf %{_libdir}/notepadqq/notepadqq-bin %{buildroot}%{_bindir}/notepadqq-bin
 
 %files
-%doc README.md CONTRIBUTORS.md
+%doc README.md
 %{_bindir}/notepadqq*
 %{_libdir}/notepadqq/notepadqq-bin
 %{_datadir}/applications/notepadqq.desktop
