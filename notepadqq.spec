@@ -14,7 +14,7 @@ BuildRequires:	pkgconfig(Qt5Svg)
 BuildRequires:	pkgconfig(Qt5Test)
 BuildRequires:	cmake(Qt5LinguistTools)
 BuildRequires:	qmake5
-BuildRequires:  qtchooser
+BuildRequires:  qt5-qttools
 
 %description
 Notepadqq is a Notepad++-like editor for the Linux desktop.
