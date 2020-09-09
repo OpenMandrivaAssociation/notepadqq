@@ -7,7 +7,7 @@ Release:	1
 License:	GPLv3
 Group:		Editors
 URL:		http://notepadqq.altervista.org/wp/
-Source0:	https://github.com/notepadqq/notepadqq/releases/%{name}-%{version}.tar.gz
+Source0:	https://github.com/notepadqq/notepadqq/archive/%{name}-%{version}.tar.gz
 BuildRequires:	pkgconfig(Qt5Core)
 BuildRequires:	pkgconfig(Qt5Gui)
 BuildRequires:	pkgconfig(Qt5Widgets)
