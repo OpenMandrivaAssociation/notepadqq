@@ -3,7 +3,7 @@
 Summary:	A Linux clone of Notepad++
 Name:		notepadqq
 Version:	1.4.8
-Release:	1
+Release:	2
 License:	GPLv3
 Group:		Editors
 URL:		http://notepadqq.altervista.org/wp/
@@ -17,14 +17,14 @@ BuildRequires:	pkgconfig(Qt5Svg)
 BuildRequires:	pkgconfig(Qt5Test)
 BuildRequires:	cmake(Qt5LinguistTools)
 BuildRequires:	qmake5
-BuildRequires:  qt5-qttools
-BuildRequires:  qt5-qtbase-devel
+BuildRequires:	qt5-qttools
+BuildRequires:	qt5-qtbase-devel
 
 %description
 Notepadqq is a Notepad++-like editor for the Linux desktop.
 
 %prep
-%setup -q
+%autosetup -p1
 # (tpg) fix libdir
 sed -i -e "s/lib/%{_lib}/g" src/ui/ui.pro
 
