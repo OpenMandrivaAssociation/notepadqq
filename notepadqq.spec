@@ -17,6 +17,7 @@ BuildRequires:	pkgconfig(Qt5WebEngineCore)
 BuildRequires:	pkgconfig(Qt5WebEngineWidgets)
 BuildRequires:	pkgconfig(Qt5Svg)
 BuildRequires:	pkgconfig(Qt5Test)
+BuildRequires:	pkgconfig(uchardet)
 BuildRequires:	cmake(Qt5LinguistTools)
 BuildRequires:	qmake5
 BuildRequires:	qt5-qttools
