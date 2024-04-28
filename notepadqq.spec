@@ -20,6 +20,7 @@ BuildRequires:	pkgconfig(Qt6WebEngineCore)
 BuildRequires:	pkgconfig(Qt6WebEngineWidgets)
 BuildRequires:	pkgconfig(Qt6Svg)
 BuildRequires:	pkgconfig(Qt6Test)
+BuildRequires:	pkgconfig(Qt6Core5Compat)
 BuildRequires:	pkgconfig(uchardet)
 BuildRequires:	cmake(Qt6LinguistTools)
 BuildRequires:	qmake-qt6
