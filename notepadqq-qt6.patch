@@ -1,0 +1,12 @@
+diff -up notepadqq-2.0.0-beta/src/ui/docengine.cpp.omv~ notepadqq-2.0.0-beta/src/ui/docengine.cpp
+--- notepadqq-2.0.0-beta/src/ui/docengine.cpp.omv~	2024-04-29 00:26:57.158994089 +0200
++++ notepadqq-2.0.0-beta/src/ui/docengine.cpp	2024-04-29 00:27:03.779069248 +0200
+@@ -860,7 +860,7 @@ QString DocEngine::getAvailableSudoProgr
+         const QStringList sudoPrograms{"gksu", "kdesu", "pkexec"};
+         QString envPath = QString::fromLocal8Bit(qgetenv("PATH"));
+         if (!envPath.isEmpty()) {
+-            QStringList pathList = envPath.split(':', QString::SkipEmptyParts);
++            QStringList pathList = envPath.split(':', Qt::SkipEmptyParts);
+             for (const auto& path : pathList) {
+                 QDir dir(path);
+                 for (const auto& executable : sudoPrograms) {

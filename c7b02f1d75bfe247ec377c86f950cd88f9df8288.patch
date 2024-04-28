@@ -1,0 +1,1117 @@
+From c7b02f1d75bfe247ec377c86f950cd88f9df8288 Mon Sep 17 00:00:00 2001
+From: Daniele Di Sarli <danieleds0@gmail.com>
+Date: Fri, 9 Dec 2022 22:26:09 +0100
+Subject: [PATCH] Qt6 Support
+
+---
+ .gitignore                                 |  1 +
+ src/ui/EditorNS/bannerbasicmessage.cpp     |  4 +-
+ src/ui/EditorNS/customqwebview.cpp         |  2 +-
+ src/ui/EditorNS/editor.cpp                 | 46 +++++++++++-----------
+ src/ui/Extensions/Stubs/stub.cpp           |  4 +-
+ src/ui/Extensions/extension.cpp            |  3 +-
+ src/ui/Extensions/extensionsloader.cpp     |  3 +-
+ src/ui/Extensions/installextension.cpp     |  5 ++-
+ src/ui/Search/advancedsearchdock.cpp       | 10 ++---
+ src/ui/Search/filereplacer.cpp             | 15 +++----
+ src/ui/Search/filesearcher.cpp             |  2 +-
+ src/ui/Search/frmsearchreplace.cpp         |  5 ++-
+ src/ui/Sessions/sessions.cpp               |  6 +--
+ src/ui/docengine.cpp                       | 29 +++++++-------
+ src/ui/frmpreferences.cpp                  |  2 +-
+ src/ui/globals.cpp                         | 10 ++---
+ src/ui/include/EditorNS/editor.h           | 36 ++++++++---------
+ src/ui/include/Search/advancedsearchdock.h |  6 +--
+ src/ui/include/docengine.h                 | 12 +++---
+ src/ui/include/frmencodingchooser.h        |  1 +
+ src/ui/include/mainwindow.h                |  6 +--
+ src/ui/include/nqqrun.h                    |  4 +-
+ src/ui/include/topeditorcontainer.h        |  6 +--
+ src/ui/keygrabber.cpp                      |  2 +-
+ src/ui/main.cpp                            |  3 +-
+ src/ui/mainwindow.cpp                      | 12 +++---
+ src/ui/notepadqq.cpp                       |  2 +-
+ src/ui/topeditorcontainer.cpp              |  8 ++--
+ src/ui/ui.pro                              |  2 +-
+ 29 files changed, 124 insertions(+), 123 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 9537fa0f1..21339e305 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -5,6 +5,7 @@
+ *.swp
+ .DS_Store
+ Thumbs.db
++.qtc_clangd
+ 
+ # Backup files
+ *.bak
+diff --git a/src/ui/EditorNS/bannerbasicmessage.cpp b/src/ui/EditorNS/bannerbasicmessage.cpp
+index 923a4f1fa..8d2d5ea55 100644
+--- a/src/ui/EditorNS/bannerbasicmessage.cpp
++++ b/src/ui/EditorNS/bannerbasicmessage.cpp
+@@ -18,7 +18,7 @@ namespace EditorNS
+ 
+         m_layout = new QHBoxLayout(m_topWidget);
+         m_layout->setContentsMargins(0, 0, 0, 0);
+-        m_layout->setMargin(12);
++        // m_layout->setMargin(12); // FIXME Is it ok to remove this?
+ 
+         m_topWidget->setObjectName("BannerBasicMessage_base");
+         setImportance(Importance::Warning);
+@@ -42,7 +42,7 @@ namespace EditorNS
+     void BannerBasicMessage::setMessage(QString text)
+     {
+         m_message->setText(text);
+-        m_message->setMaximumWidth( fontMetrics().width(text)+30 );
++        m_message->setMaximumWidth( fontMetrics().size(Qt::TextSingleLine, text).width()+30 );
+     }
+ 
+     void BannerBasicMessage::setImportance(Importance importance)
+diff --git a/src/ui/EditorNS/customqwebview.cpp b/src/ui/EditorNS/customqwebview.cpp
+index f601b2130..cc44c9ade 100644
+--- a/src/ui/EditorNS/customqwebview.cpp
++++ b/src/ui/EditorNS/customqwebview.cpp
+@@ -16,7 +16,7 @@ namespace EditorNS
+         emit mouseWheel(ev);
+ 
+         if (ev->modifiers() & Qt::ShiftModifier) {
+-            QWheelEvent hScroll (ev->pos(), ev->delta(), ev->buttons(), ev->modifiers(), Qt::Horizontal);
++            QWheelEvent hScroll (ev->position(), ev->globalPosition(), ev->pixelDelta().transposed(), ev->angleDelta().transposed(), ev->buttons(), ev->modifiers(), ev->phase(), ev->inverted(), Qt::MouseEventNotSynthesized);
+             QWebEngineView::wheelEvent(&hScroll);
+         } else {
+             QWebEngineView::wheelEvent(ev);
+diff --git a/src/ui/EditorNS/editor.cpp b/src/ui/EditorNS/editor.cpp
+index 8a8cf1d5d..159e16aab 100644
+--- a/src/ui/EditorNS/editor.cpp
++++ b/src/ui/EditorNS/editor.cpp
+@@ -55,7 +55,7 @@ namespace EditorNS
+         m_webView->page()->setWebChannel(channel);
+         channel->registerObject(QStringLiteral("cpp_ui_driver"), m_jsToCppProxy);
+ 
+-        m_webView->page()->setBackgroundColor(qApp->palette().color(QPalette::Background));
++        m_webView->page()->setBackgroundColor(qApp->palette().color(QPalette::Window));
+         m_webView->setUrl(url);
+ 
+         // To load the page in the background (http://stackoverflow.com/a/10520029):
+@@ -222,7 +222,7 @@ namespace EditorNS
+         m_tabName = name;
+     }
+ 
+-    QPromise<bool> Editor::isCleanP()
++    QtPromise::QPromise<bool> Editor::isCleanP()
+     {
+         return asyncSendMessageWithResultP("C_FUN_IS_CLEAN", QVariant(0))
+                 .then([](QVariant v){ return v.toBool(); });
+@@ -234,19 +234,19 @@ namespace EditorNS
+         return asyncSendMessageWithResult("C_FUN_IS_CLEAN", data).get().toBool();
+     }
+ 
+-    QPromise<void> Editor::markClean()
++    QtPromise::QPromise<void> Editor::markClean()
+     {
+         return asyncSendMessageWithResultP("C_CMD_MARK_CLEAN").then([](){})
+                 .wait(); // FIXME Remove
+     }
+ 
+-    QPromise<void> Editor::markDirty()
++    QtPromise::QPromise<void> Editor::markDirty()
+     {
+         return asyncSendMessageWithResultP("C_CMD_MARK_DIRTY").then([](){})
+                 .wait(); // FIXME Remove
+     }
+ 
+-    QPromise<int> Editor::getHistoryGeneration()
++    QtPromise::QPromise<int> Editor::getHistoryGeneration()
+     {
+         return asyncSendMessageWithResultP("C_FUN_GET_HISTORY_GENERATION")
+                 .then([](QVariant v){return v.toInt();});
+@@ -299,7 +299,7 @@ namespace EditorNS
+         setLanguageFromFilePath(filePath().toString());
+     }
+ 
+-    QPromise<void> Editor::setIndentationMode(const Language* lang)
++    QtPromise::QPromise<void> Editor::setIndentationMode(const Language* lang)
+     {
+         const auto& s = NqqSettings::getInstance().Languages;
+         const bool useDefaults = s.getUseDefaultSettings(lang->id);
+@@ -308,7 +308,7 @@ namespace EditorNS
+         return setIndentationMode(!s.getIndentWithSpaces(langId), s.getTabSize(langId));
+     }
+ 
+-    QPromise<void> Editor::setIndentationMode(const bool useTabs, const int size)
++    QtPromise::QPromise<void> Editor::setIndentationMode(const bool useTabs, const int size)
+     {
+         return asyncSendMessageWithResultP("C_CMD_SET_INDENTATION_MODE",
+                                            QVariantMap{{"useTabs", useTabs}, {"size", size}}).then([](){});
+@@ -323,7 +323,7 @@ namespace EditorNS
+         return out;
+     }
+ 
+-    QPromise<Editor::IndentationMode> Editor::indentationModeP()
++    QtPromise::QPromise<Editor::IndentationMode> Editor::indentationModeP()
+     {
+         return asyncSendMessageWithResultP("C_FUN_GET_INDENTATION_MODE").then([](QVariant result){
+             QVariantMap indent = result.toMap();
+@@ -362,7 +362,7 @@ namespace EditorNS
+         asyncSendMessageWithResultP("C_CMD_SET_SMART_INDENT", enabled);
+     }
+ 
+-    QPromise<void> Editor::setValue(const QString &value)
++    QtPromise::QPromise<void> Editor::setValue(const QString &value)
+     {
+         auto lang = LanguageService::getInstance().lookupByContent(value);
+         if (lang != nullptr) {
+@@ -404,13 +404,13 @@ namespace EditorNS
+ 
+     unsigned int messageIdentifier = 0;
+ 
+-    QPromise<QVariant> Editor::asyncSendMessageWithResultP(const QString msg, const QVariant data)
++    QtPromise::QPromise<QVariant> Editor::asyncSendMessageWithResultP(const QString msg, const QVariant data)
+     {
+         unsigned int currentMsgIdentifier = ++messageIdentifier;
+ 
+-        QPromise<QVariant> resultPromise = QPromise<QVariant>([&](
+-                                                              const QPromiseResolve<QVariant>& resolve,
+-                                                              const QPromiseReject<QVariant>& /* reject */) {
++        QtPromise::QPromise<QVariant> resultPromise = QtPromise::QPromise<QVariant>([&](
++                                                              const QtPromise::QPromiseResolve<QVariant>& resolve,
++                                                              const QtPromise::QPromiseReject<QVariant>& /* reject */) {
+ 
+             auto conn = std::make_shared<QMetaObject::Connection>();
+             *conn = QObject::connect(this, &Editor::asyncReplyReceived, this, [=](unsigned int id, QString, QVariant data){
+@@ -448,7 +448,7 @@ namespace EditorNS
+         return resultPromise;
+     }
+ 
+-    QPromise<QVariant> Editor::asyncSendMessageWithResultP(const QString msg)
++    QtPromise::QPromise<QVariant> Editor::asyncSendMessageWithResultP(const QString msg)
+     {
+         return this->asyncSendMessageWithResultP(msg, 0);
+     }
+@@ -558,7 +558,7 @@ namespace EditorNS
+         asyncSendMessageWithResultP("C_CMD_ENABLE_MATH", enabled);
+     }
+ 
+-    QPromise<QPair<int, int>> Editor::cursorPositionP()
++    QtPromise::QPromise<QPair<int, int>> Editor::cursorPositionP()
+     {
+         return asyncSendMessageWithResultP("C_FUN_GET_CURSOR")
+                .then([](QVariant v){
+@@ -713,7 +713,7 @@ namespace EditorNS
+         return out;
+     }
+ 
+-    QPromise<QStringList> Editor::selectedTexts()
++    QtPromise::QPromise<QStringList> Editor::selectedTexts()
+     {
+         return asyncSendMessageWithResultP("C_FUN_GET_SELECTIONS_TEXT")
+                 .then([](QVariant text){ return text.toStringList(); });
+@@ -729,7 +729,7 @@ namespace EditorNS
+         asyncSendMessageWithResultP("C_CMD_SET_TABS_VISIBLE", visible);
+     }
+ 
+-    QPromise<std::pair<Editor::IndentationMode, bool>> Editor::detectDocumentIndentation()
++    QtPromise::QPromise<std::pair<Editor::IndentationMode, bool>> Editor::detectDocumentIndentation()
+     {
+         return asyncSendMessageWithResultP("C_FUN_DETECT_INDENTATION_MODE").then([](QVariant result){
+             QVariantMap indent = result.toMap();
+@@ -753,7 +753,7 @@ namespace EditorNS
+         // 2. Set WebView's bg-color to white to prevent visual artifacts when printing less than one page.
+         // 3. Set C_CMD_DISPLAY_PRINT_STYLE to hide UI elements like the gutter.
+ 
+-#if QT_VERSION >= QT_VERSION_CHECK(5,8,0)
++#if QT_VERSION >= QT_VERSION_CHECK(5,8,0) && QT_VERSION < QT_VERSION_CHECK(6,0,0)
+         QColor prevBackgroundColor = m_webView->page()->backgroundColor();
+         QString prevStylesheet = m_webView->styleSheet();
+ 
+@@ -773,15 +773,15 @@ namespace EditorNS
+ #endif
+     }
+ 
+-    QPromise<QByteArray> Editor::printToPdf(const QPageLayout& pageLayout)
++    QtPromise::QPromise<QByteArray> Editor::printToPdf(const QPageLayout& pageLayout)
+     {
+         // 1. Set theme to default because dark themes would force the printer to color the entire
+         //    document in the background color. Default theme has white background.
+         // 2. Set WebView's bg-color to white to prevent visual artifacts when printing less than one page.
+         // 3. Set C_CMD_DISPLAY_PRINT_STYLE to hide UI elements like the gutter.
+ 
+-        return QPromise<QByteArray>(
+-            [&](const QPromiseResolve<QByteArray>& resolve, const QPromiseReject<QByteArray>& reject) {
++        return QtPromise::QPromise<QByteArray>(
++            [&](const QtPromise::QPromiseResolve<QByteArray>& resolve, const QtPromise::QPromiseReject<QByteArray>& reject) {
+ 
+ #if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+                 QColor prevBackgroundColor = m_webView->page()->backgroundColor();
+@@ -817,13 +817,13 @@ namespace EditorNS
+             });
+     }
+ 
+-    QPromise<QString> Editor::getCurrentWord()
++    QtPromise::QPromise<QString> Editor::getCurrentWord()
+     {
+         return asyncSendMessageWithResultP("C_FUN_GET_CURRENT_WORD")
+                 .then([](QVariant v){ return v.toString(); });
+     }
+ 
+-    QPromise<int> Editor::lineCount()
++    QtPromise::QPromise<int> Editor::lineCount()
+     {
+         return asyncSendMessageWithResultP("C_FUN_GET_LINE_COUNT")
+                 .then([](QVariant v){ return v.toInt(); });
+diff --git a/src/ui/Extensions/Stubs/stub.cpp b/src/ui/Extensions/Stubs/stub.cpp
+index f35ad4c8f..eb123c29b 100644
+--- a/src/ui/Extensions/Stubs/stub.cpp
++++ b/src/ui/Extensions/Stubs/stub.cpp
+@@ -77,7 +77,7 @@ namespace Extensions {
+         QObject *Stub::objectUnmanagedPtr()
+         {
+             if (m_pointerType == PointerType::WEAK_POINTER)
+-                return m_weakPointer.data();
++                return m_weakPointer.toStrongRef().data(); // fixme leak?
+             else if (m_pointerType == PointerType::SHARED_POINTER)
+                 return m_sharedPointer.data();
+             else if (m_pointerType == PointerType::UNMANAGED_POINTER)
+@@ -211,7 +211,7 @@ namespace Extensions {
+ 
+             QVariant returnValue;
+             if (QString(metaMethod.typeName()) != "void") {
+-                returnValue = QVariant(QMetaType::type(metaMethod.typeName()),
++                returnValue = QVariant(QMetaType::fromName(metaMethod.typeName()),
+                     static_cast<void*>(NULL));
+             }
+ 
+diff --git a/src/ui/Extensions/extension.cpp b/src/ui/Extensions/extension.cpp
+index ccd397a1a..d53f372a7 100644
+--- a/src/ui/Extensions/extension.cpp
++++ b/src/ui/Extensions/extension.cpp
+@@ -8,12 +8,13 @@
+ #include <QJsonObject>
+ #include <QTextStream>
+ #include <QTime>
++#include <QRandomGenerator>
+ 
+ namespace Extensions {
+ 
+     Extension::Extension(QString path, QString serverSocketPath) : QObject(0)
+     {
+-        m_extensionId = path + "-" + QTime::currentTime().msec() + "-" + QString::number(qrand());
++        m_extensionId = path + "-" + QString::number(QTime::currentTime().msec()) + "-" + QString::number(QRandomGenerator::global()->generate());
+ 
+         QJsonObject manifest = getManifest(path);
+ 
+diff --git a/src/ui/Extensions/extensionsloader.cpp b/src/ui/Extensions/extensionsloader.cpp
+index 3b8a431cf..845bbc43e 100644
+--- a/src/ui/Extensions/extensionsloader.cpp
++++ b/src/ui/Extensions/extensionsloader.cpp
+@@ -5,6 +5,7 @@
+ 
+ #include <QDateTime>
+ #include <QDirIterator>
++#include <QRandomGenerator>
+ 
+ namespace Extensions {
+ 
+@@ -26,7 +27,7 @@ namespace Extensions {
+         QString name = "notepadqq-exts-";
+         name += QString::number(QDateTime::currentMSecsSinceEpoch());
+         name += "-";
+-        name += QString::number(qrand());
++        name += QString::number(QRandomGenerator::global()->generate());
+ 
+         return startExtensionsServer(name);
+     }
+diff --git a/src/ui/Extensions/installextension.cpp b/src/ui/Extensions/installextension.cpp
+index 777cd73ce..1af2427b5 100644
+--- a/src/ui/Extensions/installextension.cpp
++++ b/src/ui/Extensions/installextension.cpp
+@@ -9,6 +9,7 @@
+ #include <QJsonObject>
+ #include <QJsonParseError>
+ #include <QProcess>
++#include <QRegularExpression>
+ 
+ namespace Extensions {
+ 
+@@ -74,7 +75,7 @@ namespace Extensions {
+         if (extensionUniqueName.isEmpty())
+             return QString();
+ 
+-        if (!extensionUniqueName.contains(QRegExp(R"(^[-_0-9a-z]+(\.[-_0-9a-z]+)+$)", Qt::CaseSensitive))) {
++        if (!extensionUniqueName.contains(QRegularExpression(R"(^[-_0-9a-z]+(\.[-_0-9a-z]+)+$)"))) {
+             return QString();
+         }
+ 
+@@ -100,7 +101,7 @@ namespace Extensions {
+ 
+         QProcess *process = new QProcess(this);
+ 
+-        connect(process, static_cast<void (QProcess::*)(QProcess::ProcessError)>(&QProcess::error), [=](){
++        connect(process, &QProcess::error, [=](){
+             setUIClean(false);
+ 
+             QMessageBox infoBox;
+diff --git a/src/ui/Search/advancedsearchdock.cpp b/src/ui/Search/advancedsearchdock.cpp
+index ad25b78ae..345efbd78 100644
+--- a/src/ui/Search/advancedsearchdock.cpp
++++ b/src/ui/Search/advancedsearchdock.cpp
+@@ -77,7 +77,7 @@ QSize QSearchDockTitleButton::sizeHint() const
+     return QSize(size, size);
+ }
+ 
+-void QSearchDockTitleButton::enterEvent(QEvent *event)
++void QSearchDockTitleButton::enterEvent(QEnterEvent *event)
+ {
+     if (isEnabled()) update();
+     QAbstractButton::enterEvent(event);
+@@ -94,7 +94,7 @@ void QSearchDockTitleButton::paintEvent(QPaintEvent* /*evt*/)
+     QPainter p(this);
+ 
+     QStyleOptionToolButton opt;
+-    opt.init(this);
++    // opt.init(this);
+     opt.state |= QStyle::State_AutoRaise;
+ 
+     if (style()->styleHint(QStyle::SH_DockWidget_ButtonsHaveFrame, 0, this))
+@@ -109,8 +109,8 @@ void QSearchDockTitleButton::paintEvent(QPaintEvent* /*evt*/)
+     }
+ 
+     opt.icon = icon();
+-    opt.subControls = 0;
+-    opt.activeSubControls = 0;
++    opt.subControls = QStyle::SC_None;
++    opt.activeSubControls = QStyle::SC_None;
+     opt.features = QStyleOptionToolButton::None;
+     opt.arrowType = Qt::NoArrow;
+     int size = style()->pixelMetric(QStyle::PM_SmallIconSize, 0, this);
+@@ -159,7 +159,7 @@ void showRegexInfo() {
+ QLayout* AdvancedSearchDock::buildLeftTitlebar() {
+ 
+     QLabel* label = new QLabel(tr("Advanced Search"));
+-    label->setMaximumWidth(label->fontMetrics().width(label->text()));
++    label->setMaximumWidth(label->fontMetrics().size(Qt::TextSingleLine, label->text()).width());
+ 
+     m_btnClearHistory = new QToolButton;
+     m_btnClearHistory->setIcon(IconProvider::fromTheme("edit-clear"));
+diff --git a/src/ui/Search/filereplacer.cpp b/src/ui/Search/filereplacer.cpp
+index 431caab5a..93a0b9dfd 100644
+--- a/src/ui/Search/filereplacer.cpp
++++ b/src/ui/Search/filereplacer.cpp
+@@ -4,6 +4,7 @@
+ 
+ #include <QFile>
+ #include <QTextStream>
++#include <QStringRef>
+ 
+ FileReplacer::FileReplacer(const SearchResult& results, const QString &replacement)
+     : m_searchResult(results),
+@@ -52,14 +53,14 @@ void FileReplacer::replaceAll(const DocResult& doc, QString& content, const QStr
+ 
+     int newLength = 0; // length of the new string, with all the replacements
+     int lastEnd = 0;
+-    QVector<QStringRef> chunks;
++    QVector<QString> chunks;  // PERF: instead of QString, these could be QStringRef
+     const QString copy = content;
+ 
+     for (const auto& result : doc.results) {
+ 
+         int len = result.positionInFile - lastEnd;
+         if (len > 0) {
+-            chunks << copy.midRef(lastEnd, len);
++            chunks << copy.mid(lastEnd, len);  // PERF: using .sliced() could be faster (see also below)
+             newLength += len;
+         }
+ 
+@@ -70,14 +71,14 @@ void FileReplacer::replaceAll(const DocResult& doc, QString& content, const QStr
+             // part of "after" before the backreference
+             len = backReference.pos - lastEnd;
+             if (len > 0) {
+-                chunks << replacement.midRef(lastEnd, len);
++                chunks << replacement.mid(lastEnd, len);
+                 newLength += len;
+             }
+ 
+             // backreference itself
+             len = result.regexMatch.capturedLength(backReference.num);
+             if (len > 0) {
+-                chunks << copy.midRef(result.regexMatch.capturedStart(backReference.num),
++                chunks << copy.mid(result.regexMatch.capturedStart(backReference.num),
+                                       len);
+                 newLength += len;
+             }
+@@ -88,7 +89,7 @@ void FileReplacer::replaceAll(const DocResult& doc, QString& content, const QStr
+         // add the last part of the after string
+         len = replacement.length() - lastEnd;
+         if (len > 0) {
+-            chunks << replacement.midRef(lastEnd, len);
++            chunks << replacement.mid(lastEnd, len);
+             newLength += len;
+         }
+ 
+@@ -97,7 +98,7 @@ void FileReplacer::replaceAll(const DocResult& doc, QString& content, const QStr
+ 
+     // 3. trailing string after the last match
+     if (copy.length() > lastEnd) {
+-        chunks << copy.midRef(lastEnd);
++        chunks << copy.mid(lastEnd);
+         newLength += copy.length() - lastEnd;
+     }
+ 
+@@ -105,7 +106,7 @@ void FileReplacer::replaceAll(const DocResult& doc, QString& content, const QStr
+     content.resize(newLength);
+     int i = 0;
+     QChar *uc = content.data();
+-    for (const QStringRef &chunk : chunks) {
++    for (const QString &chunk : chunks) {
+         int len = chunk.length();
+         memcpy(uc + i, chunk.unicode(), static_cast<ulong>(len) * sizeof(QChar));
+         i += len;
+diff --git a/src/ui/Search/filesearcher.cpp b/src/ui/Search/filesearcher.cpp
+index 89f37b7ee..9f990ee67 100644
+--- a/src/ui/Search/filesearcher.cpp
++++ b/src/ui/Search/filesearcher.cpp
+@@ -195,7 +195,7 @@ void FileSearcher::run() {
+                 QDirIterator::NoIteratorFlags;
+ 
+     // Split contents of the file pattern string and sanitize it for use
+-    QStringList filters = m_searchConfig.filePattern.split(',', QString::SkipEmptyParts);
++    QStringList filters = m_searchConfig.filePattern.split(',', Qt::SkipEmptyParts);
+     for (QString& item : filters)
+         item = item.trimmed();
+ 
+diff --git a/src/ui/Search/frmsearchreplace.cpp b/src/ui/Search/frmsearchreplace.cpp
+index 0dcf77f53..195450b45 100644
+--- a/src/ui/Search/frmsearchreplace.cpp
++++ b/src/ui/Search/frmsearchreplace.cpp
+@@ -10,6 +10,7 @@
+ #include <QLineEdit>
+ #include <QMessageBox>
+ #include <QThread>
++#include <QActionGroup>
+ 
+ frmSearchReplace::frmSearchReplace(TopEditorContainer *topEditorContainer, QWidget *parent) :
+     QMainWindow(parent),
+@@ -97,7 +98,7 @@ void frmSearchReplace::setSearchText(QString string)
+       Workaround is to disable auto complete until the search box was manually edited
+       which prevents the bug. Auto complete is enabled again in on_searchStringEdited.
+     */
+-    ui->cmbSearch->setAutoCompletion(false);
++    // ui->cmbSearch->setCompleter(nullptr);
+ }
+ 
+ void frmSearchReplace::setCurrentTab(Tabs tab)
+@@ -384,7 +385,7 @@ void frmSearchReplace::on_searchStringEdited(const QString &/*text*/)
+     }
+ 
+     // Workaround. See comment in setSearchText().
+-    ui->cmbSearch->setAutoCompletion(true);
++    // FIXME Is this still needed?
+     ui->cmbSearch->completer()->setCaseSensitivity(Qt::CaseSensitive);
+ }
+ 
+diff --git a/src/ui/Sessions/sessions.cpp b/src/ui/Sessions/sessions.cpp
+index b4f3d56cb..ced32f817 100644
+--- a/src/ui/Sessions/sessions.cpp
++++ b/src/ui/Sessions/sessions.cpp
+@@ -128,7 +128,7 @@ std::vector<ViewData> SessionReader::readData(bool* outSuccess) {
+     std::vector<ViewData> result;
+ 
+     if (m_reader.readNextStartElement()) {
+-        if (m_reader.name() == "Notepadqq") {
++        if (m_reader.name() == QString("Notepadqq")) { // FIXME Is this equality ok?
+             result = readViewData();
+         }
+         else
+@@ -149,7 +149,7 @@ std::vector<ViewData> SessionReader::readViewData() {
+     std::vector<ViewData> result;
+ 
+     while (m_reader.readNextStartElement()) {
+-        if (m_reader.name() == "View") {
++        if (m_reader.name() == QString("View")) {
+             ViewData vd;
+             vd.tabs = readTabData();
+             result.push_back(vd);
+@@ -166,7 +166,7 @@ std::vector<TabData> SessionReader::readTabData() {
+     std::vector<TabData> result;
+ 
+     while (m_reader.readNextStartElement()) {
+-        if (m_reader.name() == "Tab") {
++        if (m_reader.name() == QString("Tab")) { // FIXME Is this equality ok?
+             const QXmlStreamAttributes& attrs = m_reader.attributes();
+ 
+             TabData td;
+diff --git a/src/ui/docengine.cpp b/src/ui/docengine.cpp
+index 8245988b8..91887808a 100644
+--- a/src/ui/docengine.cpp
++++ b/src/ui/docengine.cpp
+@@ -68,20 +68,20 @@ DocEngine::DecodedText DocEngine::readToString(QFile *file, QTextCodec *codec, b
+     return decoded;
+ }
+ 
+-QPromise<void> DocEngine::read(QFile *file, QSharedPointer<Editor> editor)
++QtPromise::QPromise<void> DocEngine::read(QFile *file, QSharedPointer<Editor> editor)
+ {
+     return read(file, editor, nullptr, false);
+ }
+ 
+-QPromise<void> DocEngine::read(QFile *file, QSharedPointer<Editor> editor, QTextCodec *codec, bool bom)
++QtPromise::QPromise<void> DocEngine::read(QFile *file, QSharedPointer<Editor> editor, QTextCodec *codec, bool bom)
+ {
+     if(!editor)
+-        return QPromise<void>::reject(0);
++        return QtPromise::QPromise<void>::reject(0);
+ 
+     DecodedText decoded = readToString(file, codec, bom);
+ 
+     if (decoded.error)
+-        return QPromise<void>::reject(0);
++        return QtPromise::QPromise<void>::reject(0);
+ 
+     editor->setCodec(decoded.codec);
+     editor->setBom(decoded.bom);
+@@ -136,7 +136,7 @@ int showReloadDialog(const QString docName) {
+     return msgBox.exec();
+ }
+ 
+-QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>> DocEngine::loadDocumentsInBackground(const DocEngine::DocumentLoader& docLoader)
++QList<std::pair<QSharedPointer<Editor>, QtPromise::QPromise<QSharedPointer<Editor>>>> DocEngine::loadDocumentsInBackground(const DocEngine::DocumentLoader& docLoader)
+ {
+     const auto& fileNames = docLoader.urls;
+     const auto& rememberLastSelectedDir = docLoader.rememberLastDir;
+@@ -146,12 +146,12 @@ QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>> DocEn
+     auto fileSizeAction = std::make_shared<FileSizeAction>(docLoader.fileSizeAction);
+ 
+     if (fileNames.empty())
+-        return QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>>();
++        return QList<std::pair<QSharedPointer<Editor>, QtPromise::QPromise<QSharedPointer<Editor>>>>();
+ 
+     if (rememberLastSelectedDir)
+         NqqSettings::getInstance().General.setLastSelectedDir(QFileInfo(fileNames[0].toLocalFile()).absolutePath());
+ 
+-    QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>> loadedEditors;
++    QList<std::pair<QSharedPointer<Editor>, QtPromise::QPromise<QSharedPointer<Editor>>>> loadedEditors;
+ 
+     bool isFirstDocument = true;
+ 
+@@ -242,7 +242,7 @@ QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>> DocEn
+             tabWidget->editor(tabIndex)->setFocus();
+         }
+ 
+-        auto continuationP = QPromise<QSharedPointer<Editor>>([=](auto resolve, auto reject)
++        auto continuationP = QtPromise::QPromise<QSharedPointer<Editor>>([=](auto resolve, auto reject)
+         {
+             // Compute the ms of delay based on the priority for this URL.
+             constexpr int min_priority_delay = 100;
+@@ -283,7 +283,7 @@ QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>> DocEn
+ 
+                 QFile file(localFileName);
+                 if (file.exists()) {
+-                    QPromise<void> readResult = this->read(&file, editor, codec, bom).wait();
++                    QtPromise::QPromise<void> readResult = this->read(&file, editor, codec, bom).wait();
+ 
+                     while (readResult.isRejected()) {
+                         // Handle error
+@@ -357,7 +357,7 @@ QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>> DocEn
+     return loadedEditors;
+ }
+ 
+-QPromise<void> DocEngine::loadDocuments(const DocEngine::DocumentLoader& docLoader)
++QtPromise::QPromise<void> DocEngine::loadDocuments(const DocEngine::DocumentLoader& docLoader)
+ {
+     // FIXME Unify with loadDocumentsInBackground by calling
+     // loadDocumentsInBackground() and waiting on the result promises.
+@@ -370,7 +370,7 @@ QPromise<void> DocEngine::loadDocuments(const DocEngine::DocumentLoader& docLoad
+     auto fileSizeAction = std::make_shared<FileSizeAction>(docLoader.fileSizeAction);
+ 
+     if (fileNames.empty())
+-        return QPromise<void>::resolve();
++        return QtPromise::QPromise<void>::resolve();
+ 
+     if (rememberLastSelectedDir)
+         NqqSettings::getInstance().General.setLastSelectedDir(QFileInfo(fileNames[0].toLocalFile()).absolutePath());
+@@ -470,7 +470,7 @@ QPromise<void> DocEngine::loadDocuments(const DocEngine::DocumentLoader& docLoad
+ 
+         QFile file(localFileName);
+         if (file.exists()) {
+-            QPromise<void> readResult = this->read(&file, editor, codec, bom).wait(); // FIXME To async!
++            QtPromise::QPromise<void> readResult = this->read(&file, editor, codec, bom).wait(); // FIXME To async!
+ 
+             while (readResult.isRejected()) {
+                 // Handle error
+@@ -732,7 +732,8 @@ QByteArray DocEngine::getBomForCodec(QTextCodec *codec)
+     int aSize; // Size of the "a" character
+ 
+     QTextStream stream(&bom);
+-    stream.setCodec(codec);
++    // TODO Needs to be fixed. https://stackoverflow.com/questions/69652985/qsimplescada-is-not-compiling-class-qtextstream-has-no-member-named-setcodec
++    // stream.setCodec(codec);
+     stream.setGenerateByteOrderMark(true);
+ 
+     // Write an 'a' so that the BOM gets written.
+@@ -1057,7 +1058,7 @@ DocEngine::DecodedText DocEngine::decodeText(const QByteArray &contents)
+     QTextCodec* codec = nullptr;
+ 
+     // Limit decoding to the first 64 kilobytes
+-    size_t detectionSize = static_cast<size_t>(std::min(contents.size(), 65536));
++    size_t detectionSize = std::min<size_t>(contents.size(), 65536);
+ 
+     // Use uchardet to try and detect file encoding if no BOM was found
+     uchardet_t encodingDetector = uchardet_new();
+diff --git a/src/ui/frmpreferences.cpp b/src/ui/frmpreferences.cpp
+index f809c2bfe..f2933a449 100644
+--- a/src/ui/frmpreferences.cpp
++++ b/src/ui/frmpreferences.cpp
+@@ -680,7 +680,7 @@ void frmPreferences::on_btnToolbarReset_clicked()
+ 
+     QString toolbarItems = MainWindow::lastActiveInstance()->getDefaultToolBarString();
+     auto actions = MainWindow::lastActiveInstance()->getActions();
+-    auto parts = toolbarItems.split('|', QString::SkipEmptyParts);
++    auto parts = toolbarItems.split('|', Qt::SkipEmptyParts);
+ 
+     for (const auto& part : parts) {
+         if (part == "Separator") {
+diff --git a/src/ui/globals.cpp b/src/ui/globals.cpp
+index 5da67d500..c47f2fdf3 100644
+--- a/src/ui/globals.cpp
++++ b/src/ui/globals.cpp
+@@ -3,8 +3,6 @@
+ #include <QTextStream>
+ #include <QtPromise>
+ 
+-using namespace QtPromise;
+-
+ void print(QString string)
+ {
+     static QTextStream ts(stdout);
+@@ -29,13 +27,13 @@ void printerrln(QString string)
+     printerr(string + "\n");
+ }
+ 
+-QPromise<PForResult::Enum> pFor(int start, int end, std::function<QPromise<PForResult::Enum>(int, QPromise<PForResult::Enum>, QPromise<PForResult::Enum>)> iteration) {
+-    QPromise<PForResult::Enum> p = QPromise<PForResult::Enum>::resolve(PForResult::Continue);
++QtPromise::QPromise<PForResult::Enum> pFor(int start, int end, std::function<QtPromise::QPromise<PForResult::Enum>(int, QtPromise::QPromise<PForResult::Enum>, QtPromise::QPromise<PForResult::Enum>)> iteration) {
++    QtPromise::QPromise<PForResult::Enum> p = QtPromise::QPromise<PForResult::Enum>::resolve(PForResult::Continue);
+ 
+     for (int i = start; i < end; i++) {
+         p = p.then([=](PForResult::Enum result){
+-            const auto _break = QPromise<PForResult::Enum>::resolve(PForResult::Break);
+-            const auto _continue = QPromise<PForResult::Enum>::resolve(PForResult::Continue);
++            const auto _break = QtPromise::QPromise<PForResult::Enum>::resolve(PForResult::Break);
++            const auto _continue = QtPromise::QPromise<PForResult::Enum>::resolve(PForResult::Continue);
+             if (result == PForResult::Break) {
+                 return _break; // TODO It is inefficient to transfer the "Break" message all to the end of the loop
+             } else {
+diff --git a/src/ui/include/EditorNS/editor.h b/src/ui/include/EditorNS/editor.h
+index 78fa7d83e..fbcfca2d3 100644
+--- a/src/ui/include/EditorNS/editor.h
++++ b/src/ui/include/EditorNS/editor.h
+@@ -6,7 +6,7 @@
+ 
+ #include <QObject>
+ #include <QQueue>
+-#include <QTextCodec>
++#include <QtCore5Compat/QTextCodec>
+ #include <QVBoxLayout>
+ #include <QVariant>
+ #include <QWheelEvent>
+@@ -18,8 +18,6 @@
+ 
+ class EditorTabWidget;
+ 
+-using namespace QtPromise;
+-
+ namespace EditorNS
+ {
+ 
+@@ -186,16 +184,16 @@ namespace EditorNS
+         void removeBanner(QString objectName);
+ 
+         // Lower-level message wrappers:
+-        QPromise<bool> isCleanP();
++        QtPromise::QPromise<bool> isCleanP();
+         Q_INVOKABLE bool isClean();
+-        Q_INVOKABLE QPromise<void> markClean();
+-        Q_INVOKABLE QPromise<void> markDirty();
++        Q_INVOKABLE QtPromise::QPromise<void> markClean();
++        Q_INVOKABLE QtPromise::QPromise<void> markDirty();
+ 
+         /**
+          * @brief Returns an integer that denotes the editor's history state. Making changes to
+          *        the contents increments the integer while reverting changes decrements it again.
+          */
+-        Q_INVOKABLE QPromise<int> getHistoryGeneration();
++        Q_INVOKABLE QtPromise::QPromise<int> getHistoryGeneration();
+ 
+         /**
+          * @brief Set the language to use for the editor.
+@@ -207,7 +205,7 @@ namespace EditorNS
+         Q_INVOKABLE void setLanguage(const QString &language);
+         Q_INVOKABLE void setLanguageFromFilePath(const QString& filePath);
+         Q_INVOKABLE void setLanguageFromFilePath();
+-        Q_INVOKABLE QPromise<void> setValue(const QString &value);
++        Q_INVOKABLE QtPromise::QPromise<void> setValue(const QString &value);
+         Q_INVOKABLE QString value();
+ 
+         /**
+@@ -241,7 +239,7 @@ namespace EditorNS
+          * @return a <line, column> pair.
+          */
+         QPair<int, int> cursorPosition();
+-        QPromise<QPair<int, int>> cursorPositionP();
++        QtPromise::QPromise<QPair<int, int>> cursorPositionP();
+         void setCursorPosition(const int line, const int column);
+         void setCursorPosition(const QPair<int, int> &position);
+         void setCursorPosition(const Cursor &cursor);
+@@ -302,7 +300,7 @@ namespace EditorNS
+          * @brief Returns the currently selected texts.
+          * @return
+          */
+-        Q_INVOKABLE QPromise<QStringList> selectedTexts();
++        Q_INVOKABLE QtPromise::QPromise<QStringList> selectedTexts();
+ 
+         void setOverwrite(bool overwrite);
+         void setTabsVisible(bool visible);
+@@ -312,15 +310,15 @@ namespace EditorNS
+          * @return a pair whose first element is the document indentation, that is
+          *         significative only if the second element ("found") is true.
+          */
+-        QPromise<std::pair<IndentationMode, bool>> detectDocumentIndentation();
++        QtPromise::QPromise<std::pair<IndentationMode, bool>> detectDocumentIndentation();
+         Editor::IndentationMode indentationMode();
+-        QPromise<IndentationMode> indentationModeP();
++        QtPromise::QPromise<IndentationMode> indentationModeP();
+ 
+-        QPromise<QString> getCurrentWord();
++        QtPromise::QPromise<QString> getCurrentWord();
+ 
+         void setSelection(int fromLine, int fromCol, int toLine, int toCol);
+ 
+-        QPromise<int> lineCount();
++        QtPromise::QPromise<int> lineCount();
+ 
+     private:
+         friend class ::EditorTabWidget;
+@@ -356,8 +354,8 @@ namespace EditorNS
+ 
+         void fullConstructor(const Theme &theme);
+ 
+-        QPromise<void> setIndentationMode(const bool useTabs, const int size);
+-        QPromise<void> setIndentationMode(const Language*);
++        QtPromise::QPromise<void> setIndentationMode(const bool useTabs, const int size);
++        QtPromise::QPromise<void> setIndentationMode(const Language*);
+ 
+     private slots:
+         void on_proxyMessageReceived(QString msg, QVariant data);
+@@ -393,8 +391,8 @@ namespace EditorNS
+         void sendMessage(const QString msg);
+ 
+ 
+-        QPromise<QVariant> asyncSendMessageWithResultP(const QString msg, const QVariant data);
+-        QPromise<QVariant> asyncSendMessageWithResultP(const QString msg);
++        QtPromise::QPromise<QVariant> asyncSendMessageWithResultP(const QString msg, const QVariant data);
++        QtPromise::QPromise<QVariant> asyncSendMessageWithResultP(const QString msg);
+ 
+         /**
+          * @brief asyncSendMessageWithResult
+@@ -421,7 +419,7 @@ namespace EditorNS
+          * @param pageLayout
+          * @return
+          */
+-        QPromise<QByteArray> printToPdf(const QPageLayout &pageLayout = QPageLayout(QPageSize(QPageSize::A4), QPageLayout::Portrait, QMarginsF()));
++        QtPromise::QPromise<QByteArray> printToPdf(const QPageLayout &pageLayout = QPageLayout(QPageSize(QPageSize::A4), QPageLayout::Portrait, QMarginsF()));
+     };
+ 
+ }
+diff --git a/src/ui/include/Search/advancedsearchdock.h b/src/ui/include/Search/advancedsearchdock.h
+index 5a10e6638..e8089ac28 100644
+--- a/src/ui/include/Search/advancedsearchdock.h
++++ b/src/ui/include/Search/advancedsearchdock.h
+@@ -35,9 +35,9 @@ class QSearchDockTitleButton : public QAbstractButton
+     QSize sizeHint() const override;
+     QSize minimumSizeHint() const override { return sizeHint(); }
+ 
+-    void enterEvent(QEvent *event) override;
+-    void leaveEvent(QEvent *event) override;
+-    void paintEvent(QPaintEvent *event) override;
++    void enterEvent(QEnterEvent *event);
++    void leaveEvent(QEvent *event);
++    void paintEvent(QPaintEvent *event);
+ };
+ 
+ class MainWindow;
+diff --git a/src/ui/include/docengine.h b/src/ui/include/docengine.h
+index 111990ee3..0042814e8 100644
+--- a/src/ui/include/docengine.h
++++ b/src/ui/include/docengine.h
+@@ -97,12 +97,12 @@ class DocEngine : public QObject
+         /**
+          * @brief execute Runs the load operation.
+          */
+-        QPromise<void> execute() {
++        QtPromise::QPromise<void> execute() {
+             Q_ASSERT(tabWidget != nullptr);
+             return docEngine.loadDocuments(*this);
+         }
+ 
+-        QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>> executeInBackground() {
++        QList<std::pair<QSharedPointer<Editor>, QtPromise::QPromise<QSharedPointer<Editor>>>> executeInBackground() {
+             Q_ASSERT(tabWidget != nullptr);
+             return docEngine.loadDocumentsInBackground(*this);
+         }
+@@ -199,15 +199,15 @@ class DocEngine : public QObject
+      * @param editor
+      * @return fulfilled if successful, rejected otherwise
+      */
+-    QPromise<void> read(QFile *file, QSharedPointer<Editor> editor);
+-    QPromise<void> read(QFile *file, QSharedPointer<Editor> editor, QTextCodec *codec, bool bom);
++    QtPromise::QPromise<void> read(QFile *file, QSharedPointer<Editor> editor);
++    QtPromise::QPromise<void> read(QFile *file, QSharedPointer<Editor> editor, QTextCodec *codec, bool bom);
+     // FIXME Separate from reload
+ 
+     /**
+      * @brief loadDocuments Responsible for loading or reloading a number of text files.
+      * @param docLoader Contains parameters for document loading. See DocumentLoader class for info.
+      */
+-    QPromise<void> loadDocuments(const DocumentLoader& docLoader);
++    QtPromise::QPromise<void> loadDocuments(const DocumentLoader& docLoader);
+ 
+     /**
+      * @brief Loads documents in background. Experimental API that needs to be integrated
+@@ -215,7 +215,7 @@ class DocEngine : public QObject
+      * @param docLoader
+      * @return
+      */
+-    QList<std::pair<QSharedPointer<Editor>, QPromise<QSharedPointer<Editor>>>> loadDocumentsInBackground(const DocumentLoader& docLoader);
++    QList<std::pair<QSharedPointer<Editor>, QtPromise::QPromise<QSharedPointer<Editor>>>> loadDocumentsInBackground(const DocumentLoader& docLoader);
+ 
+     void monitorDocument(const QString &fileName);
+     void unmonitorDocument(const QString &fileName);
+diff --git a/src/ui/include/frmencodingchooser.h b/src/ui/include/frmencodingchooser.h
+index c4e987ca3..7e987ace9 100644
+--- a/src/ui/include/frmencodingchooser.h
++++ b/src/ui/include/frmencodingchooser.h
+@@ -2,6 +2,7 @@
+ #define FRMENCODINGCHOOSER_H
+ 
+ #include <QDialog>
++#include <QTextCodec>
+ 
+ namespace Ui {
+ class frmEncodingChooser;
+diff --git a/src/ui/include/mainwindow.h b/src/ui/include/mainwindow.h
+index 299e026c4..8a7bf8296 100644
+--- a/src/ui/include/mainwindow.h
++++ b/src/ui/include/mainwindow.h
+@@ -16,8 +16,6 @@
+ 
+ #include <functional>
+ 
+-using namespace QtPromise;
+-
+ namespace Ui {
+ class MainWindow;
+ }
+@@ -278,8 +276,8 @@ private slots:
+     void                convertEditorEncoding(QSharedPointer<Editor> editor, QTextCodec *codec, bool bom);
+     void                toggleOverwrite();
+     void                checkIndentationMode(QSharedPointer<Editor> editor);
+-    QPromise<QStringList> currentWordOrSelections();
+-    QPromise<QString>     currentWordOrSelection();
++    QtPromise::QPromise<QStringList> currentWordOrSelections();
++    QtPromise::QPromise<QString>     currentWordOrSelection();
+     void                currentWordOnlineSearch(const QString &searchUrl);
+ 
+     /**
+diff --git a/src/ui/include/nqqrun.h b/src/ui/include/nqqrun.h
+index cacd78a3d..47a1de79f 100644
+--- a/src/ui/include/nqqrun.h
++++ b/src/ui/include/nqqrun.h
+@@ -20,7 +20,7 @@ class RunPreferences : public QDialog
+     NqqSettings &m_settings;
+     QTableWidget *m_commands;
+ public:
+-    RunPreferences(QWidget *parent = nullptr, Qt::WindowFlags f = nullptr);
++    RunPreferences(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::Widget);
+     ~RunPreferences();
+ 
+ private slots:
+@@ -56,7 +56,7 @@ class RunDialog : public QDialog
+     bool m_saved;
+ 
+ public:
+-    RunDialog(QWidget *parent = nullptr, Qt::WindowFlags f = nullptr);
++    RunDialog(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::Widget);
+     ~RunDialog();
+     QString getCommandInput();
+     bool saved();
+diff --git a/src/ui/include/topeditorcontainer.h b/src/ui/include/topeditorcontainer.h
+index 1ae478ca2..b2022ff9c 100644
+--- a/src/ui/include/topeditorcontainer.h
++++ b/src/ui/include/topeditorcontainer.h
+@@ -11,8 +11,6 @@
+ #include <functional>
+ #include <vector>
+ 
+-using namespace QtPromise;
+-
+ /**
+  * @brief Contains one or more EditorTabWidgets. This class
+  *        allows the user to have multiple tabs displayed at the
+@@ -64,7 +62,7 @@ class TopEditorContainer : public QSplitter
+      * @param callback
+      * @return Returns a promise which is resolved when all the callbacks have finished.
+      */
+-    QPromise<void> forEachEditorAsync(bool backwardIndices, std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, QSharedPointer<Editor> editor, std::function<void()> goOn, std::function<void()> stop)> callback);
++    QtPromise::QPromise<void> forEachEditorAsync(bool backwardIndices, std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, QSharedPointer<Editor> editor, std::function<void()> goOn, std::function<void()> stop)> callback);
+ 
+     /**
+      * @brief Executes the specified asynchronous function for each editor in this container, concurrently.
+@@ -72,7 +70,7 @@ class TopEditorContainer : public QSplitter
+      * @param callback
+      * @return Returns a promise which is resolved when all the callbacks have called done().
+      */
+-    QPromise<void> forEachEditorConcurrent(std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, QSharedPointer<Editor> editor, std::function<void()> done)> callback);
++    QtPromise::QPromise<void> forEachEditorConcurrent(std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, QSharedPointer<Editor> editor, std::function<void()> done)> callback);
+ 
+     std::vector<QSharedPointer<Editor>> getOpenEditors();
+ 
+diff --git a/src/ui/keygrabber.cpp b/src/ui/keygrabber.cpp
+index 77bfa4005..420d0fe74 100644
+--- a/src/ui/keygrabber.cpp
++++ b/src/ui/keygrabber.cpp
+@@ -44,7 +44,7 @@ void KeyGrabber::checkForConflicts()
+     // Find conflicts among shortcuts. We take a list of all shortcuts, sort them, then
+     // walk through them and compare them for equality.
+     QList<NodeItem> allNodes = m_allActions;
+-    qSort(allNodes.begin(), allNodes.end(), [](const NodeItem& a, const NodeItem&b ) {
++    std::sort(allNodes.begin(), allNodes.end(), [](const NodeItem& a, const NodeItem&b ) {
+         return a.treeItem->text(1) < b.treeItem->text(1);
+     });
+ 
+diff --git a/src/ui/main.cpp b/src/ui/main.cpp
+index be427b2ef..72c80f829 100644
+--- a/src/ui/main.cpp
++++ b/src/ui/main.cpp
+@@ -38,7 +38,8 @@ int main(int argc, char *argv[])
+ #endif
+ 
+     // Initialize random number generator
+-    qsrand(QDateTime::currentDateTimeUtc().time().msec() + qrand());
++    // TODO: Fix https://doc.qt.io/archives/qt-5.11/qtglobal-obsolete.html#qsrand
++    // qsrand(QDateTime::currentDateTimeUtc().time().msec() + qrand());
+ 
+ #if QT_VERSION > QT_VERSION_CHECK(5, 6, 0)
+     SingleApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+diff --git a/src/ui/mainwindow.cpp b/src/ui/mainwindow.cpp
+index c70053293..8c759e813 100644
+--- a/src/ui/mainwindow.cpp
++++ b/src/ui/mainwindow.cpp
+@@ -40,8 +40,8 @@
+ #include <QtPrintSupport/QPrintDialog>
+ #include <QtPrintSupport/QPrintPreviewDialog>
+ #include <QtPromise>
++#include <QActionGroup>
+ 
+-using namespace QtPromise;
+ 
+ QList<MainWindow*> MainWindow::m_instances = QList<MainWindow*>();
+ 
+@@ -366,7 +366,7 @@ void MainWindow::loadToolBar()
+         toolbarItems = getDefaultToolBarString();
+ 
+     auto actions = getActions();
+-    auto parts = toolbarItems.split('|', QString::SkipEmptyParts);
++    auto parts = toolbarItems.split('|', Qt::SkipEmptyParts);
+ 
+     for (const auto& part : parts) {
+         if(part == "Separator") {
+@@ -1668,7 +1668,7 @@ void MainWindow::on_editorMouseWheel(EditorTabWidget *tabWidget, int tab, QWheel
+ {
+     if (QApplication::keyboardModifiers() & Qt::ControlModifier) {
+         qreal curZoom = tabWidget->editor(tab)->zoomFactor();
+-        qreal diff = ev->delta() / 120;
++        qreal diff = ev->pixelDelta().y() / 120;
+         diff /= 10;
+ 
+         // Increment/Decrement zoom factor by 0.1 at each step.
+@@ -2311,7 +2311,7 @@ void MainWindow::on_actionLaunch_in_Chrome_triggered()
+     }
+ }
+ */
+-QPromise<QStringList> MainWindow::currentWordOrSelections()
++QtPromise::QPromise<QStringList> MainWindow::currentWordOrSelections()
+ {
+     auto editor = currentEditor();
+     return editor->selectedTexts().then([=](QStringList selection){
+@@ -2320,12 +2320,12 @@ QPromise<QStringList> MainWindow::currentWordOrSelections()
+                 return QStringList(word);
+             });
+         } else {
+-            return QPromise<QStringList>::resolve(selection);
++            return QtPromise::QPromise<QStringList>::resolve(selection);
+         }
+     });
+ }
+ 
+-QPromise<QString> MainWindow::currentWordOrSelection()
++QtPromise::QPromise<QString> MainWindow::currentWordOrSelection()
+ {
+     return currentWordOrSelections().then([=](QStringList terms){
+         if (terms.isEmpty()) {
+diff --git a/src/ui/notepadqq.cpp b/src/ui/notepadqq.cpp
+index b93c0e4f5..de9d1da34 100644
+--- a/src/ui/notepadqq.cpp
++++ b/src/ui/notepadqq.cpp
+@@ -15,7 +15,7 @@ const QString Notepadqq::website = "https://notepadqq.com";
+ 
+ QString Notepadqq::copyright()
+ {
+-    return QObject::trUtf8("Copyright © 2010-%1, Daniele Di Sarli").arg(COPYRIGHT_YEAR);
++    return QString("Copyright © 2010-%1, Daniele Di Sarli").arg(COPYRIGHT_YEAR);
+ }
+ 
+ QString Notepadqq::appDataPath(QString fileName)
+diff --git a/src/ui/topeditorcontainer.cpp b/src/ui/topeditorcontainer.cpp
+index 2a55d81ec..8a7297f1e 100644
+--- a/src/ui/topeditorcontainer.cpp
++++ b/src/ui/topeditorcontainer.cpp
+@@ -207,10 +207,10 @@ void TopEditorContainer::forEachEditor(bool backwardIndexes,
+     }
+ }
+ 
+-QPromise<void> TopEditorContainer::forEachEditorAsync(bool backwardIndices,
++QtPromise::QPromise<void> TopEditorContainer::forEachEditorAsync(bool backwardIndices,
+                                                     std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, QSharedPointer<Editor> editor, std::function<void()> goOn, std::function<void()> stop)> callback)
+ {
+-    return QPromise<void>([=](const auto& resolve, const auto&) {
++    return QtPromise::QPromise<void>([=](const auto& resolve, const auto&) {
+ 
+         if (backwardIndices) {
+             std::function<std::function<void()>(int,int)> iteration = [=](int i, int j) {
+@@ -255,9 +255,9 @@ QPromise<void> TopEditorContainer::forEachEditorAsync(bool backwardIndices,
+     });
+ }
+ 
+-QPromise<void> TopEditorContainer::forEachEditorConcurrent(std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, QSharedPointer<Editor> editor, std::function<void()> done)> callback)
++QtPromise::QPromise<void> TopEditorContainer::forEachEditorConcurrent(std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, QSharedPointer<Editor> editor, std::function<void()> done)> callback)
+ {
+-    return QPromise<void>([=](const auto& resolve, const auto&) {
++    return QtPromise::QPromise<void>([=](const auto& resolve, const auto&) {
+ 
+         // Collect all the indices we're going to use
+         std::vector<std::pair<int,int>> indices;
+diff --git a/src/ui/ui.pro b/src/ui/ui.pro
+index a1346eb00..307392637 100644
+--- a/src/ui/ui.pro
++++ b/src/ui/ui.pro
+@@ -4,7 +4,7 @@
+ #
+ #-------------------------------------------------
+ 
+-QT       += core gui svg widgets printsupport network webenginewidgets webchannel websockets dbus
++QT       += core gui svg widgets printsupport network webenginewidgets webchannel websockets dbus core5compat
+ CONFIG += c++14 link_pkgconfig
+ PKGCONFIG += uchardet
+ 
