@@ -12,6 +12,10 @@ URL:		https://github.com/notepadqq/notepadqq/
 Source0:	https://github.com/notepadqq/notepadqq/archive/refs/tags/v%{version}%{?beta:-%{beta}}.tar.gz
 Patch:		https://github.com/notepadqq/notepadqq/commit/c7b02f1d75bfe247ec377c86f950cd88f9df8288.patch
 Patch1:		notepadqq-qt6.patch
+BuildRequires:	autoconf
+BuildRequires:	automake
+BuildRequires:	libtool-base
+BuildRequires:	slibtool
 BuildRequires:	pkgconfig(Qt6Core)
 BuildRequires:	pkgconfig(Qt6Gui)
 BuildRequires:	pkgconfig(Qt6Widgets)
